@@ -1,35 +1,111 @@
-# Webhook Relay API
+﻿# Webhook Relay API
 
-> **Portfolio demonstration** — a sandbox API for testing outbound webhooks with HMAC signatures, retries, and rate limits. Starter implementation for learning integration patterns, not production webhook infrastructure.
-
-## Problem
-
-Developers need a safe place to observe webhook delivery, signature verification, exponential backoff, and per-key throttling without standing up multiple services.
+Webhook Relay is a **portfolio demonstration** sandbox for testing outbound webhooks. Register a callback URL with an API key, trigger signed JSON events (HMAC-SHA256), and inspect delivery attempts. It uses file-backed storage and an in-memory token-bucket rate limiter—not production-grade Redis infrastructure.
 
 ## Stack
 
-- Python 3.11+ · FastAPI · HMAC-SHA256 · Redis (optional for full rate limiting)
+- Python 3.11+
+- FastAPI, httpx, Pydantic
+- HMAC-SHA256 signatures
+- JSON file store under `data/`
+- In-memory rate limiting middleware
 
-## Quick start
+## Prerequisites
+
+- Python 3.11+
+- A public HTTPS URL (or local tunnel) if you want to receive real callbacks; use https://webhook.site for quick tests
+
+## Setup
 
 ```bash
+git clone https://github.com/zacharyahutton/webhook-relay-api.git
+cd webhook-relay-api
 python -m venv .venv
+.venv\Scripts\activate   # Windows
+# source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+## How to run
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-## Endpoints (starter)
+Docs: http://127.0.0.1:8000/docs
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| POST | `/webhooks` | Register a callback URL |
-| POST | `/events/trigger` | Queue a signed delivery |
-| GET | `/deliveries` | List delivery attempts |
+Demo API key: `demo-key` (secret used for signing: `demo-secret` — hard-coded for learning only).
 
-## Disclaimer
+## How to test
 
-Portfolio starter repo linked from [zacharyahutton/portfolio](https://github.com/zacharyahutton/portfolio). Redis-backed token buckets and persistent dead-letter queues are documented in the case study but simplified here.
+### Curl flow
+
+1. Register a webhook (use a URL from webhook.site):
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/webhooks \
+  -H "X-API-Key: demo-key" \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"https://webhook.site/your-uuid\"}"
+```
+
+2. Trigger an event:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/events/trigger \
+  -H "X-API-Key: demo-key" \
+  -H "Content-Type: application/json" \
+  -d "{\"event_type\":\"order.created\",\"payload\":{\"orderId\":\"42\"}}"
+```
+
+Sample response:
+
+```json
+{"delivery_id":"<uuid>","status":"delivered","attempts":[{"attempt":1,"http_status":200}]}
+```
+
+3. List deliveries:
+
+```bash
+curl -s http://127.0.0.1:8000/deliveries -H "X-API-Key: demo-key"
+```
+
+Verify the receiver got header `X-Webhook-Signature` (hex HMAC of the raw JSON body).
+
+### Rate limits
+
+Excessive requests with the same `X-API-Key` return `429` with `Retry-After: 1`.
+
+## API endpoints
+
+| Method | Path | Headers | Description |
+|--------|------|---------|-------------|
+| GET | `/health` | — | Health check |
+| POST | `/webhooks` | `X-API-Key` | Register callback URL |
+| POST | `/events/trigger` | `X-API-Key` | Deliver signed event (retries with backoff) |
+| GET | `/deliveries` | `X-API-Key` | Delivery history for this key |
+
+## Project structure
+
+```
+app/
+  main.py         Routes and delivery engine
+  store.py        JSON file persistence
+  rate_limit.py   Token-bucket middleware
+data/
+  store.json      Created at runtime (gitignored)
+```
+
+## Portfolio disclaimer
+
+Linked from the [Webhook Relay case study](https://github.com/zacharyahutton/portfolio). The portfolio write-up discusses Redis token buckets, dead-letter queues, and replay endpoints; **this repo implements a simplified, honest slice** so you can clone and run it without Redis.
+
+## Future improvements
+
+- Redis-backed rate limits and delivery queue
+- Replay endpoint for failed deliveries
+- Configurable API keys via environment variables
+- Signature verification helper script for consumers
 
 ## License
 
