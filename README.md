@@ -100,6 +100,15 @@ data/
 
 Linked from the [Webhook Relay case study](https://github.com/zacharyahutton/portfolio). The portfolio write-up discusses Redis token buckets, dead-letter queues, and replay endpoints; **this repo implements a simplified, honest slice** so you can clone and run it without Redis.
 
+## VS Code
+
+1. **File → Open Folder** and select this repository root.
+2. Install recommended extensions when prompted (Python or Node/Java packs).
+3. **Run and Debug** (`F5`): choose **FastAPI (uvicorn) depending on the repo.
+4. **Terminal → Run Task**: `dev: uvicorn`, `npm: dev`, or `mvn: test`.
+
+Workspace settings live in `.vscode/` (`extensions.json`, `launch.json`, `tasks.json`, `settings.json`).
+
 ## Future improvements
 
 - Redis-backed rate limits and delivery queue
